@@ -63,6 +63,21 @@
   /* focus */
   .focus{border-left:3px solid var(--green)}
   .focus q{display:block;margin-top:8px;font-size:16.5px;font-weight:600;color:var(--ink);line-height:1.5;quotes:none}
+  .focus.closed{border-left-color:#d93025}
+  .focus.closed .klabel{color:var(--redT)}
+  /* discipline ledger */
+  .led-row{display:flex;align-items:flex-end;gap:16px;margin:10px 0 8px}
+  .led-score{font-size:46px;font-weight:900;line-height:1;color:var(--muted)}
+  .led-score.g{color:var(--green2)} .led-score.a{color:#ffb020} .led-score.r{color:var(--redT)}
+  .led-max{font-size:14px;font-weight:800;color:var(--muted)}
+  .led-week{display:flex;gap:5px;align-items:flex-end;height:36px;flex:1;justify-content:flex-end}
+  .led-day{width:15px;border-radius:3px;background:var(--panel2)}
+  .led-day.g{background:var(--green)} .led-day.a{background:#c9932e} .led-day.r{background:#b3453a}
+  .crit{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted);padding:3.5px 0;font-weight:700}
+  .crit .ic{width:16px;text-align:center;font-weight:900;color:var(--muted)}
+  .crit.ok{color:var(--ink2)} .crit.ok .ic{color:var(--green2)}
+  .crit.bad{color:var(--ink2)} .crit.bad .ic{color:var(--redT)}
+  .led-note{font-size:11.5px;color:var(--muted);margin-top:8px;font-weight:600}
   /* session */
   .chips{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0 4px;min-height:32px}
   .chip{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:19px;color:#fff;text-decoration:none;box-shadow:inset 0 -3px 0 rgba(0,0,0,.22)}
@@ -177,17 +192,24 @@
       <div class="track-cap"><span>600</span><span id="togo"></span><span>1700</span></div>
     </div>
 
-    <div class="card focus reveal" style="animation-delay:.05s">
-      <div class="klabel">TONIGHT'S FOCUS</div>
+    <div class="card reveal" style="animation-delay:.04s">
+      <div class="klabel">THE LEDGER &nbsp;·&nbsp; TODAY'S DISCIPLINE</div>
+      <div class="led-row"><div><span class="led-score" id="ledscore">—</span><span class="led-max"> /100</span></div><div class="led-week" id="ledweek"></div></div>
+      <div id="ledcrit"></div>
+      <div class="led-note">Behavior is the score you chase. Rating follows it. Green is ≥80.</div>
+    </div>
+
+    <div class="card focus reveal" id="focuscard" style="animation-delay:.08s">
+      <div class="klabel" id="focuslabel">TONIGHT'S FOCUS</div>
       <q id="tip"></q>
     </div>
 
-    <div class="card reveal" id="sesscard" style="animation-delay:.1s">
+    <div class="card reveal" id="sesscard" style="animation-delay:.12s">
       <button class="refresh" id="refreshBtn" title="Sync from chess.com" aria-label="Sync from chess.com">↻</button>
       <div class="klabel">TODAY AT THE BOARD</div>
       <div class="chips" id="chips"></div>
       <div class="sess-note" id="sessnote">Syncing with chess.com…</div>
-      <div class="stop-msg hidden" id="stopmsg">Stop for today. Two in a row.</div>
+      <div class="stop-msg hidden" id="stopmsg">Stop for today. Two in a row — game three is the 48.5% trap.</div>
     </div>
 
     <div class="card reveal" style="animation-delay:.15s">
@@ -233,7 +255,7 @@
     <div class="card chart reveal"><h3>Openings as White</h3><p class="note">Score · (games). Red = below 48%.</p><div id="ch-opw"></div>
       <div class="insight">White is healthy. The Smith–Morra (66%) is your best weapon — keep it.</div></div>
     <div class="card chart reveal"><h3>Openings as Black</h3><p class="note">Score · (games). Red = below 48%.</p><div id="ch-opb"></div>
-      <div class="insight">Nothing above break-even. Drop the Englund; learn one solid answer to 1.d4.</div></div>
+      <div class="insight">Nothing above break-even — and the bleed is vs 1.e4 (46.8% over 1,101 games), not 1.d4. The fix: revive the Scandinavian, build the Caro-Kann.</div></div>
   </section>
 
   <!-- ============ PLAN ============ -->
@@ -252,8 +274,8 @@
       <div class="klabel">THE CAMPAIGN</div>
       <div class="phase" id="phase1"><span class="badge">→ 1400</span><div class="ph-tag">PHASE I · JUL–SEP 2026</div><h4>Stop the bleeding</h4>
         <ul><li>Daily ritual, every day. 15+10 games only.</li><li>Blunder-check ritual until it's automatic.</li><li>5 trainer puzzles a day — your own worst positions.</li></ul></div>
-      <div class="phase" id="phase2"><span class="badge">→ 1500</span><div class="ph-tag">PHASE II · OCT 2026–MAR 2027</div><h4>Fix Black, own moves 11–20</h4>
-        <ul><li>One solid repertoire as Black: keep 1...e5, learn the Italian & Ruy structures; vs 1.d4 play ...d5 systems.</li><li>Deliberate slow-down when leaving book.</li><li>Review every loss — name the losing move out loud.</li></ul></div>
+      <div class="phase" id="phase2"><span class="badge">→ 1500</span><div class="ph-tag">PHASE II · OCT 2026–MAR 2027</div><h4>Fix Black vs 1.e4, own moves 11–20</h4>
+        <ul><li>Retire 1...e5 vs 1.e4 — every branch scores under 50% even played cleanly. Revive the Scandinavian (3...Qa5, 56.5% in your own games), then build the Caro-Kann.</li><li>Your 1.d4 answers stay as they are — that side is fine.</li><li>Deliberate slow-down when leaving book.</li><li>Review every loss — name the losing move out loud.</li></ul></div>
       <div class="phase" id="phase3"><span class="badge">→ 1700</span><div class="ph-tag">PHASE III · APR 2027 →</div><h4>Convert everything</h4>
         <ul><li>Endgame technique — stop returning 1 in 4 winning positions.</li><li>Monthly engine re-analysis to re-aim training.</li></ul></div>
     </div>
@@ -332,7 +354,7 @@ const TIPS=[
  "470 games ended because you walked away. Tonight, finish everything you start.",
  "After two straight losses you score 49.7%. The third game is the trap — close the app instead.",
  "Your Black score is 47.8%. As Black tonight: solidity first, ambition second.",
- "The Englund scores 48.7% and teaches bad habits. One solid ...d5 line beats a cheap trick.",
+ "Black vs 1.e4 is the bleed — 46.8% over 1,101 games. Tonight as Black: Scandinavian, 1...d5 and 3...Qa5. Solid first.",
  "One in four winning positions slips away. Up material? Trade pieces, not pawns.",
  "Your puzzle rating is 1839. That player shows up the moment you slow down.",
  "13:00 and 23:00 are your worst hours — about 46%. Play the daily game earlier.",
@@ -342,9 +364,11 @@ const TIPS=[
  "Checks, captures, threats — what does this move hang? That's the whole secret at this level.",
  "Peak 1411 was April. That player is still in there — he just finishes his games."
 ];
+let dailyTip='';
 (function(){
   const doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/864e5);
-  $('tip').textContent=TIPS[doy%TIPS.length];
+  dailyTip=TIPS[doy%TIPS.length];
+  $('tip').textContent=dailyTip;
 })();
 
 /* ---------- today's session (auto-sync) ---------- */
@@ -371,7 +395,8 @@ async function syncToday(){
     const today=all.filter(g=>g.end_time>=mid);
     todayGames=today.map(g=>{
       const me=mine(g),op=g.white===me?g.black:g.white;
-      return {r:me.result==='win'?'W':(DRAWS.includes(me.result)?'D':'L'),url:g.url,op:op.username,rating:me.rating};
+      return {r:me.result==='win'?'W':(DRAWS.includes(me.result)?'D':'L'),rd:me.result,
+              h:new Date(g.end_time*1000).getHours(),url:g.url,op:op.username,rating:me.rating};
     });
     const base=prev?mine(prev).rating:(todayGames.length>1?todayGames[0].rating:null);
     deltaToday=(todayGames.length&&base!==null)?todayGames[todayGames.length-1].rating-base:null;
@@ -399,9 +424,68 @@ function renderSession(){
     dl.className='delta '+(deltaToday>0?'up':deltaToday<0?'down':'flat');
     dl.textContent=(deltaToday>=0?'+':'−')+Math.abs(deltaToday);
   }
+  governor();
   syncChecks();
 }
 $('refreshBtn').addEventListener('click',syncToday);
+
+/* ---------- C1: the discipline ledger ---------- */
+function ledgerEval(){
+  const rs=todayGames;
+  const played=rs.length>0;
+  const anyAbandon=rs.some(g=>g.rd==='abandoned');
+  let playedTrap=false;
+  for(let i=2;i<rs.length;i++)if(rs[i-1].r==='L'&&rs[i-2].r==='L')playedTrap=true;
+  const late=rs.some(g=>g.h>=23);
+  const crits=[
+    {t:'Finished every game',ok:!anyAbandon,pts:30,na:!played},
+    {t:'Stopped after two losses',ok:!playedTrap,pts:25,na:!played},
+    {t:'Three games or fewer',ok:rs.length<=3,pts:15,na:!played},
+    {t:'Nothing after 23:00',ok:!late,pts:15,na:!played},
+    {t:'Five trainer puzzles',ok:solvesToday()>=5,pts:15,na:false},
+  ];
+  const score=crits.reduce((s,c)=>s+((c.na||c.ok)?c.pts:0),0);
+  return {crits,score,played};
+}
+function renderLedger(){
+  const {crits,score,played}=ledgerEval();
+  const started=played||solvesToday()>0;
+  const el=$('ledscore');
+  el.textContent=started?score:'—';
+  el.className='led-score '+(started?(score>=80?'g':score>=50?'a':'r'):'');
+  $('ledcrit').innerHTML=crits.map(c=>
+    `<div class="crit ${c.na?'':(c.ok?'ok':'bad')}"><span class="ic">${c.na?'·':(c.ok?'✓':'✗')}</span>${c.t}${c.na?' — no games yet':''}</div>`).join('');
+  const led=store.get('cc_ledger',{});
+  if(started){led[todayKey()]=score;store.set('cc_ledger',led);}
+  const cells=[];const d=new Date();
+  for(let i=6;i>=0;i--){const dd=new Date(d.getFullYear(),d.getMonth(),d.getDate()-i);
+    const k=dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-'+String(dd.getDate()).padStart(2,'0');
+    cells.push(led[k]);}
+  $('ledweek').innerHTML=cells.map(v=>{
+    const h=v==null?6:Math.max(6,Math.round(v*0.36));
+    const cls=v==null?'':(v>=80?' g':v>=50?' a':' r');
+    return `<span class="led-day${cls}" style="height:${h}px" title="${v==null?'—':v}"></span>`;
+  }).join('');
+}
+
+/* ---------- C5: the session governor ---------- */
+function governor(){
+  const rs=todayGames.map(g=>g.r);
+  const stop=rs.length>=2&&rs.slice(-2).every(r=>r==='L');
+  const now=new Date();
+  const late=now.getHours()>=23||(now.getHours()===22&&now.getMinutes()>=30);
+  const lbl=$('focuslabel'),tip=$('tip'),fc=$('focuscard');
+  if(stop){
+    lbl.textContent="BOARD'S CLOSED";fc.classList.add('closed');
+    tip.textContent='Two losses in a row. Done for today — the next game is the 48.5% trap. Solve your five puzzles instead; the board reopens tomorrow.';
+  }else if(late){
+    lbl.textContent="BOARD'S CLOSED";fc.classList.add('closed');
+    tip.textContent="Past 22:30 — these are your 42% hours. The board reopens tomorrow. Not playing right now is the strongest move available.";
+  }else{
+    lbl.textContent="TONIGHT'S FOCUS";fc.classList.remove('closed');
+    tip.textContent=dailyTip;
+  }
+}
 
 /* ---------- daily ritual ---------- */
 const RITUAL=[
@@ -440,6 +524,7 @@ function syncChecks(){
     if(days[k]){streak++;d.setDate(d.getDate()-1)}else break;}
   $('flameN').textContent=streak;
   $('flame').classList.toggle('hidden',streak===0);
+  renderLedger();
 }
 
 /* ---------- trainer ---------- */
@@ -630,6 +715,7 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPro
 $('installBtn').addEventListener('click',async()=>{if(deferredPrompt){deferredPrompt.prompt();deferredPrompt=null;$('installBtn').classList.add('hidden');}});
 
 /* ---------- boot ---------- */
+governor();
 syncChecks();
 syncToday();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
