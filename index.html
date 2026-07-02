@@ -84,6 +84,28 @@
   .chip.W{background:var(--green)} .chip.L{background:var(--lossbg)} .chip.D{background:#85847f}
   .card.stop{box-shadow:0 2px 8px rgba(0,0,0,.25),inset 0 0 0 1px rgba(217,48,37,.6)}
   .stop-msg{font-size:17px;font-weight:800;color:var(--redT);margin-top:8px}
+  .chip.L.todo{box-shadow:inset 0 -3px 0 rgba(0,0,0,.22),0 0 0 2px rgba(255,255,255,.55)}
+  .chip.done::after{content:"✓";position:absolute;font-size:11px;transform:translate(11px,-11px);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .chip{position:relative}
+  /* debrief sheet */
+  .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .2s}
+  .sheet-bg.on{opacity:1}
+  .sheet{background:var(--panel);border-radius:18px 18px 0 0;width:100%;max-width:560px;padding:20px 18px calc(20px + var(--safe-b));
+    transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.7,.2,1);max-height:88vh;overflow-y:auto}
+  .sheet-bg.on .sheet{transform:none}
+  .sheet h3{margin:2px 0 2px;font-size:18px;font-weight:900;color:var(--ink)}
+  .sheet .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .q{margin:14px 0}
+  .q .ql{font-size:13.5px;font-weight:800;color:var(--ink2);margin-bottom:7px}
+  .opts{display:flex;gap:8px;flex-wrap:wrap}
+  .opt{border:none;background:var(--panel2);color:var(--ink2);border-radius:9px;padding:10px 14px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:inset 0 -2px 0 rgba(0,0,0,.18);flex:1;min-width:70px}
+  .opt.on{background:var(--green);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+  .opt.on.no{background:var(--lossbg)}
+  .q input{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:9px;padding:11px 12px;color:var(--ink);font-family:inherit;font-size:14px}
+  .q input::placeholder{color:var(--muted)}
+  .sheet-foot{display:flex;gap:10px;margin-top:18px}
+  .sheet .gamelink{text-align:center;margin-top:12px}
+  .sheet .gamelink a{color:var(--green2);font-weight:700;font-size:13.5px;text-decoration:none}
   .sess-note{color:var(--muted);font-size:13.5px;margin-top:6px}
   .refresh{position:absolute;top:12px;right:12px;background:var(--panel2);border:none;color:var(--ink2);border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer;box-shadow:inset 0 -3px 0 rgba(0,0,0,.22)}
   .refresh:active{transform:translateY(1px)}
@@ -288,6 +310,18 @@
   </section>
   </main>
 
+  <div class="sheet-bg" id="sheetbg">
+    <div class="sheet" id="sheet">
+      <h3>Name the loss</h3>
+      <div class="sub" id="sheetsub"></div>
+      <div class="q"><div class="ql">What was the losing move?</div><input id="dbmove" placeholder="e.g. Qxb2, or the idea — hung the knight" autocomplete="off"></div>
+      <div class="q"><div class="ql">Did you skip the 3-second check?</div><div class="opts" id="dbcheck"><button class="opt" data-v="skipped">Skipped it</button><button class="opt" data-v="did">Did the check</button></div></div>
+      <div class="q"><div class="ql">Were you tilted?</div><div class="opts" id="dbtilt"><button class="opt" data-v="yes">Tilted</button><button class="opt" data-v="no">Clear-headed</button></div></div>
+      <div class="sheet-foot"><button class="btn" id="dbcancel">Later</button><button class="btn primary" id="dbsave">Save</button></div>
+      <div class="gamelink"><a id="dbgame" href="#" target="_blank" rel="noopener">Open the game on chess.com →</a></div>
+    </div>
+  </div>
+
   <nav class="tabbar">
     <button data-v="today" class="on"><span class="g">♟</span>Today</button>
     <button data-v="train"><span class="g">♞</span>Train</button>
@@ -364,10 +398,44 @@ const TIPS=[
  "Checks, captures, threats — what does this move hang? That's the whole secret at this level.",
  "Peak 1411 was April. That player is still in there — he just finishes his games."
 ];
+/* C6: adaptive focus — reacts to yesterday, falls back to the rotating tip.
+   Priority: fresh wound (abandon) > tilt pattern > repertoire leak > streak reward > default. */
+function yesterdayKey(){const d=new Date();d.setDate(d.getDate()-1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function rotatingTip(){
+  const doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/864e5);
+  return TIPS[doy%TIPS.length];
+}
+function adaptiveTip(){
+  const yk=yesterdayKey();
+  const debriefs=Object.values(store.get('cc_debrief',{}));
+  const yd=debriefs.filter(d=>d.date===yk);
+  const led=store.get('cc_ledger',{});
+  const yScore=led[yk];
+  // 1) tilt named in a debrief yesterday
+  if(yd.some(d=>d.tilt==='yes'))
+    return "Yesterday you marked a game tilted. Today: the moment your chest tightens after a loss, that's the signal to close the app — not to prove something in the next game.";
+  // 2) skipped-check named yesterday
+  if(yd.filter(d=>d.check==='skipped').length>=2)
+    return "Twice yesterday the loss came from skipping the 3-second check. Make it non-negotiable today: checks, captures, threats, every move — out loud if that's what it takes.";
+  // 3) Black-vs-1.e4 losses yesterday (ECO B/C, playing Black)
+  const e4losses=yd.filter(d=>d.color==='black'&&/^[BC]/.test(d.eco||''));
+  if(e4losses.length>=1)
+    return "You lost as Black to 1.e4 yesterday — your 46.8% hole. Today as Black play the Scandinavian: 1...d5, and after 2.exd5 Qxd5 3.Nc3 Qa5. Solidity first.";
+  // 4) rough yesterday overall
+  if(yScore!=null&&yScore<50)
+    return "Yesterday scored "+yScore+"/100 on the ledger. Today isn't about rating — it's one clean, disciplined session. Three games, finish them all, stop after two losses.";
+  // 5) clean week reward
+  const days=[];for(let i=1;i<=7;i++){const d=new Date();d.setDate(d.getDate()-i);
+    days.push(led[d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')]);}
+  const graded=days.filter(v=>v!=null);
+  if(graded.length>=4&&graded.every(v=>v>=80))
+    return "A green week behind you — the discipline is holding. Today, permission to push: when you're up material, slow down and convert. Trade pieces, not pawns.";
+  return rotatingTip();
+}
 let dailyTip='';
 (function(){
-  const doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/864e5);
-  dailyTip=TIPS[doy%TIPS.length];
+  dailyTip=adaptiveTip();
   $('tip').textContent=dailyTip;
 })();
 
@@ -392,11 +460,14 @@ async function syncToday(){
         prev=(await arch(pm.getFullYear(),pm.getMonth()+1)).filter(rapid).sort((a,b)=>a.end_time-b.end_time).pop();
       }catch(e){}
     }
+    const ecoOf=g=>{const m=(g.pgn||'').match(/\[ECO "([^"]*)"\]/);return m?m[1]:'';};
     const today=all.filter(g=>g.end_time>=mid);
     todayGames=today.map(g=>{
-      const me=mine(g),op=g.white===me?g.black:g.white;
+      const w=g.white.username.toLowerCase()===D.user;
+      const me=w?g.white:g.black,op=w?g.black:g.white;
       return {r:me.result==='win'?'W':(DRAWS.includes(me.result)?'D':'L'),rd:me.result,
-              h:new Date(g.end_time*1000).getHours(),url:g.url,op:op.username,rating:me.rating};
+              h:new Date(g.end_time*1000).getHours(),url:g.url,op:op.username,rating:me.rating,
+              color:w?'white':'black',eco:ecoOf(g)};
     });
     const base=prev?mine(prev).rating:(todayGames.length>1?todayGames[0].rating:null);
     deltaToday=(todayGames.length&&base!==null)?todayGames[todayGames.length-1].rating-base:null;
@@ -406,10 +477,18 @@ async function syncToday(){
   $('refreshBtn').classList.remove('spin');
 }
 function renderSession(){
-  $('chips').innerHTML=todayGames.map(g=>{
+  const debriefs=store.get('cc_debrief',{});
+  $('chips').innerHTML=todayGames.map((g,i)=>{
     const word=g.r==='W'?'Won':g.r==='L'?'Lost':'Draw';
+    if(g.r==='L'){
+      const done=!!debriefs[g.url];
+      const cls='chip L'+(done?' done':' todo');
+      const lbl=done?`Lost vs ${g.op} — debriefed`:`Lost vs ${g.op} — tap to debrief`;
+      return `<button class="${cls}" data-gi="${i}" title="${lbl}" aria-label="${lbl}">${SYM.L}</button>`;
+    }
     return `<a class="chip ${g.r}" href="${g.url}" target="_blank" rel="noopener" title="${word} vs ${g.op} — open game" aria-label="${word} vs ${g.op} — open game">${SYM[g.r]}</a>`;
   }).join('');
+  document.querySelectorAll('.chip.L[data-gi]').forEach(c=>c.addEventListener('click',()=>openDebrief(+c.dataset.gi)));
   const rs=todayGames.map(g=>g.r);
   const stop=rs.length>=2&&rs.slice(-2).every(r=>r==='L');
   $('sesscard').classList.toggle('stop',stop);
@@ -428,6 +507,37 @@ function renderSession(){
   syncChecks();
 }
 $('refreshBtn').addEventListener('click',syncToday);
+
+/* ---------- C3: the 60-second debrief ---------- */
+let dbGame=null,dbCheck='',dbTilt='';
+function openDebrief(i){
+  const g=todayGames[i];if(!g)return;
+  dbGame=g;const prev=store.get('cc_debrief',{})[g.url]||{};
+  $('sheetsub').textContent=`vs ${g.op} · ${g.color==='white'?'White':'Black'} · ${g.rd==='abandoned'?'abandoned':g.rd}`;
+  $('dbmove').value=prev.move||'';
+  dbCheck=prev.check||'';dbTilt=prev.tilt||'';
+  $('dbgame').href=g.url;
+  document.querySelectorAll('#dbcheck .opt').forEach(o=>{o.classList.toggle('on',o.dataset.v===dbCheck);o.classList.toggle('no',o.dataset.v==='skipped'&&dbCheck==='skipped');});
+  document.querySelectorAll('#dbtilt .opt').forEach(o=>{o.classList.toggle('on',o.dataset.v===dbTilt);o.classList.toggle('no',o.dataset.v==='yes'&&dbTilt==='yes');});
+  $('sheetbg').style.display='flex';requestAnimationFrame(()=>$('sheetbg').classList.add('on'));
+}
+function closeDebrief(){$('sheetbg').classList.remove('on');setTimeout(()=>{$('sheetbg').style.display='none';},220);}
+document.querySelectorAll('#dbcheck .opt').forEach(o=>o.addEventListener('click',()=>{
+  dbCheck=o.dataset.v;document.querySelectorAll('#dbcheck .opt').forEach(x=>{x.classList.toggle('on',x===o);x.classList.toggle('no',x.dataset.v==='skipped'&&x===o);});
+}));
+document.querySelectorAll('#dbtilt .opt').forEach(o=>o.addEventListener('click',()=>{
+  dbTilt=o.dataset.v;document.querySelectorAll('#dbtilt .opt').forEach(x=>{x.classList.toggle('on',x===o);x.classList.toggle('no',x.dataset.v==='yes'&&x===o);});
+}));
+$('dbcancel').addEventListener('click',closeDebrief);
+$('sheetbg').addEventListener('click',e=>{if(e.target===$('sheetbg'))closeDebrief();});
+$('dbsave').addEventListener('click',()=>{
+  if(!dbGame)return;
+  const d=store.get('cc_debrief',{});
+  d[dbGame.url]={move:$('dbmove').value.trim(),check:dbCheck,tilt:dbTilt,
+    color:dbGame.color,eco:dbGame.eco,date:todayKey(),ts:Date.now()};
+  store.set('cc_debrief',d);
+  closeDebrief();renderSession();syncChecks();
+});
 
 /* ---------- C1: the discipline ledger ---------- */
 function ledgerEval(){
@@ -490,9 +600,9 @@ function governor(){
 /* ---------- daily ritual ---------- */
 const RITUAL=[
  {t:'Blunder-check every move',s:'3 seconds: checks, captures, threats',auto:false},
- {t:'One focused game',s:'15+10 · finish what you start',auto:'game'},
+ {t:'One focused game',s:'10+0 · finish what you start',auto:'game'},
  {t:'Five trainer puzzles',s:'your own blunders, solved right',auto:'puzzles'},
- {t:'Review today\'s losses',s:'name the losing move out loud',auto:false}
+ {t:'Debrief today\'s losses',s:'tap each loss above · name the move',auto:'debrief'}
 ];
 function checksKey(){return 'cc_checks_'+todayKey()}
 function getManual(){return store.get(checksKey(),[false,false,false,false])}
@@ -501,6 +611,12 @@ function checkState(i){
   const m=getManual();
   if(RITUAL[i].auto==='game')return m[i]||todayGames.length>0;
   if(RITUAL[i].auto==='puzzles')return m[i]||solvesToday()>=5;
+  if(RITUAL[i].auto==='debrief'){
+    const losses=todayGames.filter(g=>g.r==='L');
+    if(!losses.length)return m[i];
+    const db=store.get('cc_debrief',{});
+    return m[i]||losses.every(g=>db[g.url]);
+  }
   return m[i];
 }
 function syncChecks(){
