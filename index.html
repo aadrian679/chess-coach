@@ -132,13 +132,28 @@
   .chip-row{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px}
   .fchip{background:var(--panel2);color:var(--ink2);border-radius:99px;padding:12px 18px;font-size:13px;font-weight:800;white-space:nowrap;min-height:44px}
   .fchip.on{background:var(--green);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25)}
-  .board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border-radius:8px;overflow:hidden;user-select:none;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+  .board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border-radius:8px;overflow:hidden;user-select:none;box-shadow:0 6px 20px rgba(0,0,0,.4);position:relative}
   .sq{position:relative;cursor:pointer;line-height:0}
   .sq.l{background:var(--sql)} .sq.d{background:var(--sqd)}
   .sq::before{content:"";position:absolute;inset:0;opacity:0;pointer-events:none}
   .sq.sel::before{background:var(--hl);opacity:1}
   .sq.good::before{background:rgba(172,224,52,.6);opacity:1}
   .sq.bad::before{background:rgba(235,60,45,.6);opacity:1}
+  /* chess.com move hints — dot on a quiet square, ring around a capture */
+  .mdot{position:absolute;left:33%;top:33%;width:34%;height:34%;border-radius:50%;background:rgba(0,0,0,.16);pointer-events:none;z-index:1}
+  .mring{position:absolute;inset:0;border-radius:50%;border:5px solid rgba(0,0,0,.16);box-sizing:border-box;pointer-events:none;z-index:1}
+  /* verdict tints — the from/to squares wear the classification color */
+  .sq.t-best::before,.sq.t-exc::before{background:rgba(129,182,76,.55);opacity:1}
+  .sq.t-good::before{background:rgba(149,183,118,.55);opacity:1}
+  .sq.t-inac::before{background:rgba(247,198,49,.55);opacity:1}
+  .sq.t-mist::before{background:rgba(255,159,46,.55);opacity:1}
+  .sq.t-miss::before{background:rgba(255,119,105,.55);opacity:1}
+  .sq.t-blun::before{background:rgba(250,65,45,.55);opacity:1}
+  /* verdict badge — circular icon pinned to the destination square's corner */
+  .cbadge{position:absolute;top:-5%;right:-5%;width:42%;height:42%;z-index:4;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+  .cbadge svg{width:100%;height:100%;display:block}
+  /* best-move arrow layer — one svg over the whole board, chess.com geometry */
+  .arrowlayer{position:absolute;inset:0;pointer-events:none;z-index:5}
   .pc{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
   .pc svg{width:94%;height:94%}
   .coord{position:absolute;font-size:10px;font-weight:800;line-height:1;z-index:2;pointer-events:none}
@@ -993,7 +1008,7 @@ function syncChecks(popIndex){
             served at a difficulty keeping rolling first-try rate in the 60-70% band.
    LADDER — graduated puzzles on Chessable's confirmed fixed intervals
             (4h,1d,3d,1wk,2wk,1mo,3mo,6mo); any miss = hard reset to the first rung. */
-let phaseFilter='all',cur=null,curMode='active',sel=null,tries=0,done=false,bmap={};
+let phaseFilter='all',cur=null,curMode='active',sel=null,tries=0,done=false,bmap={},curFlip=false;
 const solvedIds=new Set(store.get('cc_solved_v2',[]));
 const LADDER=[144e5,864e5,2592e5,6048e5,12096e5,2592e6,7776e6,15552e6];
 const sched=store.get('cc_sched',{});      // pid -> {rung, due}; rung 8 = mastered
@@ -1049,7 +1064,7 @@ function fenBoard(fen){const rows=fen.split(' ')[0].split('/');const b={};
   rows.forEach((row,ri)=>{let f=0;for(const ch of row){if(/\d/.test(ch))f+=+ch;else{b['abcdefgh'[f]+(8-ri)]=ch;f++;}}});return b;}
 function renderBoard(p){
   bmap=fenBoard(p.fen);
-  const flip=p.c==='black',host=$('board');host.innerHTML='';
+  const flip=p.c==='black',host=$('board');host.innerHTML='';curFlip=flip;
   for(let r=0;r<8;r++)for(let f=0;f<8;f++){
     const file=flip?7-f:f,rank=flip?r+1:8-r,sq='abcdefgh'[file]+rank;
     const d=document.createElement('div');
@@ -1064,6 +1079,90 @@ function renderBoard(p){
 }
 function mark(uci,cls){[uci.slice(0,2),uci.slice(2,4)].forEach(s=>{const n=$('board').querySelector(`[data-sq="${s}"]`);if(n)n.classList.add(cls)})}
 function clearcls(cls){$('board').querySelectorAll('.'+cls).forEach(e=>e.classList.remove(cls))}
+/* ---------- the review layer: chess.com-style hints, verdicts, badges, arrows ----------
+   Verdicts need per-move engine data (p.mv from eval_moves.py). Without it the
+   trainer degrades to the old plain right/wrong feedback — nothing breaks. */
+const CLS={
+  best:{l:'Best',      g:'★',c:'#81b64c'},
+  exc: {l:'Excellent', g:'!',     c:'#81b64c'},
+  good:{l:'Good',      g:'✓',c:'#95b776'},
+  inac:{l:'Inaccuracy',g:'?!',    c:'#f7c631'},
+  mist:{l:'Mistake',   g:'?',     c:'#ff9f2e'},
+  miss:{l:'Miss',      g:'✕',c:'#ff7769'},
+  blun:{l:'Blunder',   g:'??',    c:'#fa412d'}
+};
+function addBadge(sq,k){
+  const n=$('board').querySelector(`[data-sq="${sq}"]`);if(!n||n.querySelector('.cbadge'))return;
+  const c=CLS[k],d=document.createElement('div');d.className='cbadge';
+  const fs=c.g.length>1?8.5:(k==='best'?10:11);
+  d.innerHTML=`<svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="8.5" fill="${c.c}" stroke="rgba(0,0,0,.15)" stroke-width="1"/>`+
+    `<text x="9" y="9" text-anchor="middle" dominant-baseline="central" fill="#fff" font-size="${fs}" font-weight="900" style="font-family:'Nunito',sans-serif">${c.g}</text></svg>`;
+  n.appendChild(d);
+}
+function paintVerdict(uci,k){ // tint the from/to squares + badge the destination
+  if(!k){mark(uci,'bad');return;}
+  mark(uci,'t-'+k);addBadge(uci.slice(2,4),k);
+}
+function clearVerdict(){
+  const b=$('board');
+  Object.keys(CLS).forEach(k=>b.querySelectorAll('.t-'+k).forEach(e=>e.classList.remove('t-'+k)));
+  b.querySelectorAll('.cbadge').forEach(e=>e.remove());
+  b.querySelectorAll('.good,.bad').forEach(e=>e.classList.remove('good','bad'));
+}
+function legalTargets(from){ // true legality when engine data exists, pseudo otherwise
+  const p=D.pz[cur];
+  if(p.mv)return Object.keys(p.mv).filter(u=>u.startsWith(from)).map(u=>u.slice(2,4));
+  const all=[];for(const f of 'abcdefgh')for(let r=1;r<=8;r++){const s=f+r;if(pseudoLegal(from,s))all.push(s);}
+  return all;
+}
+function showDots(from){
+  clearHints();
+  for(const t of legalTargets(from)){
+    const n=$('board').querySelector(`[data-sq="${t}"]`);if(!n)continue;
+    const d=document.createElement('div');d.className=bmap[t]?'mring':'mdot';n.appendChild(d);
+  }
+}
+function clearHints(){$('board').querySelectorAll('.mdot,.mring').forEach(e=>e.remove());}
+function drawArrow(uci,color){ // chess.com-style shaft+head polygon, board = 100x100 units
+  const host=$('board');let svg=host.querySelector('.arrowlayer');
+  if(!svg){svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('class','arrowlayer');svg.setAttribute('viewBox','0 0 100 100');host.appendChild(svg);}
+  const ctr=s=>{const f='abcdefgh'.indexOf(s[0]),r=+s[1];
+    return[(curFlip?7-f:f)*12.5+6.25,(curFlip?r-1:8-r)*12.5+6.25];};
+  const [x1,y1]=ctr(uci.slice(0,2)),[x2,y2]=ctr(uci.slice(2,4));
+  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy),ux=dx/len,uy=dy/len,px=-uy,py=ux;
+  const sw=1.7,hw=3.6,hl=4.4,gap=3.6; // shaft half-width, head half-width/length, start gap
+  const bx=x2-ux*hl,by=y2-uy*hl,sx=x1+ux*gap,sy=y1+uy*gap;
+  const pts=[[sx+px*sw,sy+py*sw],[bx+px*sw,by+py*sw],[bx+px*hw,by+py*hw],[x2,y2],
+             [bx-px*hw,by-py*hw],[bx-px*sw,by-py*sw],[sx-px*sw,sy-py*sw]];
+  const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  poly.setAttribute('points',pts.map(q=>q[0].toFixed(2)+','+q[1].toFixed(2)).join(' '));
+  poly.setAttribute('fill',color);poly.setAttribute('opacity','.85');
+  svg.appendChild(poly);
+}
+function verdict(p,guess){ // classify a legal move by its win% drop vs the engine best
+  if(guess===p.bu.slice(0,4))return{k:'best',drop:0};
+  if(!p.mv||!(guess in p.mv))return null;
+  const drop=p.mv[guess],bw=p.bw!=null?p.bw:60,after=bw-drop;
+  if(drop<=1)return{k:'exc',drop};
+  if(drop<=4)return{k:'good',drop};
+  if(drop<=9)return{k:'inac',drop};
+  if(bw>=70&&after>=50&&drop>=15)return{k:'miss',drop}; // had a clear win, let it shrink
+  if(drop<=19)return{k:'mist',drop};
+  return{k:'blun',drop};
+}
+function sanish(guess){ // approximate SAN for the status line (no ambiguity/check marks)
+  const from=guess.slice(0,2),to=guess.slice(2,4),pc=bmap[from];if(!pc)return to;
+  const P=pc.toUpperCase(),cap=bmap[to]||(P==='P'&&from[0]!==to[0]);
+  if(P==='K'&&Math.abs(guess.charCodeAt(0)-guess.charCodeAt(2))===2)return to[0]==='g'?'O-O':'O-O-O';
+  if(P==='P')return cap?from[0]+'x'+to:to;
+  return P+(cap?'x':'')+to;
+}
+function verdictWord(v){ // the colored classification word + win%-cost chip
+  const c=CLS[v.k];
+  const cost=v.drop>0?` <span style="color:var(--muted);font-weight:700">(−${v.drop}%)</span>`:'';
+  return `<b style="color:${c.c}">${c.l.toLowerCase()} ${c.g}</b>${cost}`;
+}
 /* a mis-tap that no piece could ever make shouldn't burn one of your two tries */
 function pseudoLegal(from,to){
   const pc=bmap[from];if(!pc||from===to)return false;
@@ -1093,38 +1192,51 @@ function tap(sq,node){
   const p=D.pz[cur];
   const pc=bmap[sq];
   const own=pc&&((p.c==='white')===(pc===pc.toUpperCase()));
-  if(!sel){if(own){sel=sq;node.classList.add('sel')}return;}
-  if(sel===sq){sel=null;clearcls('sel');return;}
-  if(own){clearcls('sel');sel=sq;node.classList.add('sel');return;} // switch piece, not a guess
+  if(!sel){if(own){sel=sq;node.classList.add('sel');showDots(sq);}return;}
+  if(sel===sq){sel=null;clearcls('sel');clearHints();return;}
+  if(own){clearcls('sel');sel=sq;node.classList.add('sel');showDots(sq);return;} // switch piece, not a guess
   const st0=$('pzstatus');
-  if(!pseudoLegal(sel,sq)){ // impossible move: deselect, don't punish
-    sel=null;clearcls('sel');
+  const legal=p.mv?(sel+sq in p.mv)||sel+sq===p.bu.slice(0,4):pseudoLegal(sel,sq);
+  if(!legal){ // impossible move (incl. pins/checks when engine data exists): deselect, don't punish
+    sel=null;clearcls('sel');clearHints();
     st0.textContent='That piece can’t reach there — still your move.';st0.className='pz-status hint';
     return;
   }
-  const guess=sel+sq;sel=null;clearcls('sel');
+  const guess=sel+sq;sel=null;clearcls('sel');clearHints();
   const best=p.bu.slice(0,4);const st=$('pzstatus');
+  const san=sanish(guess),v=verdict(p,guess);
+  clearVerdict(); // a second try wipes the first verdict's paint
   if(guess===best){
     const firstTry=tries===0;
     done=true;
     recordAttempt(firstTry);schedSolve(p.pid,firstTry);
     solvedIds.add(p.pid);store.set('cc_solved_v2',[...solvedIds]);
     store.set('cc_solves_'+todayKey(),solvesToday()+1);
-    st.textContent=(firstTry?'Exactly. ':'Solved. ')+p.best+(firstTry&&curMode==='review'?' — moves up the ladder.':'');
+    st.innerHTML=(firstTry?'Exactly. ':'Solved. ')+p.best+' — '+verdictWord({k:'best',drop:0})+(firstTry&&curMode==='review'?' · moves up the ladder.':'');
     st.className='pz-status ok';
     if(!reducedMotion()&&navigator.vibrate)navigator.vibrate(12);
     if(solvesToday()===5)celebrate('five',"5/5 — today's puzzles are done. The ladder holds.");
-    mark(best,'good');context(p);syncChecks();
+    paintVerdict(best,'best');context(p);syncChecks();
   }else{
     tries++;
     if(tries>=2){done=true;
       snapshotUndo(p.pid);
       recordAttempt(false);schedFail(p.pid);
-      st.textContent='The move was '+p.best+(curMode==='review'?' — back to the first rung.':'');
+      st.innerHTML=(v?san+' is '+verdictWord(v)+'. ':'')+'The move was <b>'+p.best+'</b>'+(curMode==='review'?' — back to the first rung.':'.');
       st.className='pz-status no';
-      mark(best,'good');mark(p.pu.slice(0,4),'bad');context(p);
+      paintVerdict(guess,v?v.k:null);
+      drawArrow(best,'rgba(129,182,76,.95)'); // the coach shows the move you were looking for
+      const pu=p.pu.slice(0,4);
+      if(pu!==guess&&pu!==best&&pu.slice(2,4)!==guess.slice(2,4)){const vg=verdict(p,pu);if(vg&&vg.k!=='best')paintVerdict(pu,vg.k);}
+      context(p);
       offerUndo(curMode==='review'?'Missed — rung reset.':'Recorded as a miss.');
-    }else{st.textContent='Not that — one more try.';st.className='pz-status no';}
+    }else{
+      st.innerHTML=v?(v.drop===0?san+' is just as strong by the engine — but train the game move. One more try.'
+        :san+' is '+verdictWord(v)+'. One more try.')
+        :'Not that — one more try.';
+      st.className='pz-status no';
+      paintVerdict(guess,v?v.k:null);
+    }
   }
   hud();
 }
@@ -1201,8 +1313,11 @@ $('revealBtn').addEventListener('click',()=>{
   done=true;
   snapshotUndo(p.pid);
   recordAttempt(false);schedFail(p.pid);
-  $('pzstatus').textContent='Best: '+p.best;$('pzstatus').className='pz-status';
-  mark(p.bu.slice(0,4),'good');context(p);hud();
+  $('pzstatus').innerHTML='Best: <b>'+p.best+'</b> — '+verdictWord({k:'best',drop:0});$('pzstatus').className='pz-status';
+  clearVerdict();paintVerdict(p.bu.slice(0,4),'best');drawArrow(p.bu.slice(0,4),'rgba(129,182,76,.95)');
+  const pu=p.pu.slice(0,4); // and what the game saw: your actual move, with its own verdict
+  if(pu!==p.bu.slice(0,4)&&pu.slice(2,4)!==p.bu.slice(2,4)){const vg=verdict(p,pu);if(vg&&vg.k!=='best')paintVerdict(pu,vg.k);}
+  context(p);hud();
   offerUndo(curMode==='review'?'Revealed — rung reset.':'Revealed — recorded as a miss.');
 });
 $('nextBtn').addEventListener('click',()=>{skipCurrent();nextPz();});
