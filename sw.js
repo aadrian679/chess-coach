@@ -1,5 +1,5 @@
-// Chess Coach service worker — shell cc-202607031725 · data ccd-240ec6f520
-const V='cc-202607031725';
+// Chess Coach service worker — shell cc-202607031731 · data ccd-240ec6f520
+const V='cc-202607031731';
 const DV='ccd-240ec6f520';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png'];
 self.addEventListener('install',e=>{e.waitUntil(Promise.all([
